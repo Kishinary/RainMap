@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import multer from 'multer';
+import { normalizeFloodAnalysis } from '../shared/flood-analysis.js';
 
 export const config = {
   api: {
@@ -27,30 +28,6 @@ function parseMultipart(req, res) {
       else resolve();
     });
   });
-}
-
-function clampLevel(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return 0;
-  return Math.max(0, Math.min(3, Math.round(numeric)));
-}
-
-function clampConfidence(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return 0.5;
-  return Math.max(0, Math.min(0.97, numeric));
-}
-
-function getMotorbikeVerdict(level) {
-  if (level >= 3) return 'Không nên đi qua';
-  if (level >= 2) return 'Nguy hiểm · dễ chết máy';
-  return 'Có thể đi qua';
-}
-
-function getCarVerdict(level) {
-  if (level >= 3) return 'Không nên đi qua';
-  if (level >= 2) return 'Đi chậm, thận trọng';
-  return 'Có thể đi qua';
 }
 
 function getFriendlyError(error) {
@@ -115,9 +92,9 @@ export default async function handler(req, res) {
     const content = [
       {
         type: 'text',
-        text: `You analyse flood reports for Hanoi. If an image is attached, estimate water level relative to visible objects. If no photo is attached, use the message only.
+        text: `You analyse flood reports for Hanoi. If an image is attached, estimate water level relative to visible objects. If no photo is attached, use the message only. Follow the same thresholds exactly for every report.
 Message: "${message}"
-Return JSON with: objs (short string of reference objects), level (0-3: 0 dry/ankle, 1 under 15 cm, 2 about 15-35 cm, 3 over 35 cm), cm (estimated range as a string, or empty), conf (0-1), street (street name from message, or empty), tlevel (0-3 severity implied by message). Be conservative and lower confidence when evidence is weak.`,
+Return JSON with: objs (short Vietnamese string of reference objects), level (0-3: 0 dry/ankle, 1 under 15 cm, 2 about 15-35 cm, 3 over 35 cm), cm (numeric centimeter range without any unit, e.g. "15-35"; empty if unknown), conf (0-1), street (street name from message, or empty), tlevel (0-3 severity implied by message). Be conservative and lower confidence when evidence is weak.`,
       },
     ];
 
@@ -149,7 +126,7 @@ Return JSON with: objs (short string of reference objects), level (0-3: 0 dry/an
             properties: {
               objs: { type: 'string' },
               level: { type: 'integer', minimum: 0, maximum: 3 },
-              cm: { type: 'string' },
+              cm: { type: 'string', description: 'Numeric range in centimeters without a unit, e.g. 15-35; empty when unknown.' },
               conf: { type: 'number', minimum: 0, maximum: 1 },
               street: { type: 'string' },
               tlevel: { type: 'integer', minimum: 0, maximum: 3 },
@@ -159,29 +136,15 @@ Return JSON with: objs (short string of reference objects), level (0-3: 0 dry/an
           },
         },
       },
-      temperature: 0.2,
+      temperature: 0,
+      seed: 42,
     });
 
     const rawResult = completion.choices?.[0]?.message?.content;
     if (!rawResult) throw new Error('Empty model response');
 
     const result = JSON.parse(rawResult);
-    const level = clampLevel(result.level);
-    const tlevel = clampLevel(result.tlevel);
-    const consistent = Math.abs(level - tlevel) <= 1;
-    const confidence = clampConfidence(result.conf);
-
-    return res.status(200).json({
-      objs: String(result.objs || 'Chưa nhận diện được').trim(),
-      level,
-      cm: String(result.cm || '').trim(),
-      conf: consistent ? confidence : clampConfidence(confidence * 0.6),
-      street: String(result.street || '').trim() || 'Chưa xác định',
-      tlevel,
-      consistent,
-      motorbike: getMotorbikeVerdict(level),
-      car: getCarVerdict(level),
-    });
+    return res.status(200).json(normalizeFloodAnalysis(result));
   } catch (error) {
     console.error('Flood report analysis failed', {
       status: Number.isFinite(Number(error?.status)) ? Number(error.status) : undefined,

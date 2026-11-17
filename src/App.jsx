@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { divIcon } from 'leaflet';
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
+import { normalizeDepthRange } from '../shared/flood-analysis.js';
 
 const HANOI_BOUNDS = [
   [20.55, 105.28],
@@ -362,6 +363,7 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const mapCenter = useMemo(() => HANOI_CENTER, []);
+  const depthEstimate = normalizeDepthRange(analysis?.cm);
   const todayLabel = useMemo(
     () => new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()),
     [],
@@ -523,7 +525,7 @@ export default function App() {
 
               <div className="meta-grid">
                 <div><span>Đường</span><strong>{analysis.street || 'Chưa xác định'}</strong></div>
-                <div><span>Mực nước ước tính</span><strong>{analysis.cm ? `${analysis.cm} cm` : 'Chưa rõ'}</strong></div>
+                <div><span>Mực nước ước tính</span><strong>{depthEstimate ? `${depthEstimate} cm` : 'Chưa rõ'}</strong></div>
                 <div><span>Nhận định từ ảnh</span><strong>{analysis.level}/3</strong></div>
                 <div><span>Nhận định từ mô tả</span><strong>{analysis.tlevel}/3</strong></div>
               </div>

@@ -6,6 +6,7 @@ Bản thử nghiệm nhận báo cáo đường ngập bằng ảnh và mô tả
 
 - Gửi ảnh và mô tả tình trạng đường ngập
 - Dùng OpenAI để ước tính mực nước và nhận diện tên đường
+- Chuẩn hoá đơn vị và ngưỡng kết quả; dùng thiết lập sinh phản hồi ổn định hơn
 - Giảm độ tin cậy khi nội dung ảnh khác với mô tả
 - Bản đồ Leaflet với các điểm minh hoạ tại Hà Nội
 - Gom các điểm gần nhau; phóng to để xem từng vị trí
@@ -29,6 +30,8 @@ npm install
 ```bash
 npm run dev
 ```
+
+Chạy kiểm thử chuẩn hoá kết quả bằng `npm test`.
 
 Giao diện chạy tại `http://localhost:5173`, API chạy tại `http://localhost:3001`.
 Khởi động lại máy chủ sau khi thay đổi `.env`.

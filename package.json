@@ -8,6 +8,7 @@
     "dev:server": "node --watch server.js",
     "dev:client": "vite --host 0.0.0.0",
     "build": "vite build",
+    "test": "node --test",
     "preview": "vite preview --host 0.0.0.0",
     "server": "node server.js",
     "lint": "echo \"No lint configured\""

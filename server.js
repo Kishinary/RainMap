@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import { normalizeFloodAnalysis } from './shared/flood-analysis.js';
 
 dotenv.config();
 
@@ -23,39 +24,6 @@ const client = apiKey ? new OpenAI({ apiKey }) : null;
 
 app.use(express.json());
 
-function clampLevel(value, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.max(0, Math.min(3, Math.round(numeric)));
-}
-
-function clampConfidence(value, fallback = 0.5) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.max(0, Math.min(0.97, numeric));
-}
-
-function normalizeStreet(value = '') {
-  return String(value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .toLowerCase()
-    .trim();
-}
-
-function getMotorbikeVerdict(level) {
-  if (level >= 3) return 'Do not enter';
-  if (level >= 2) return 'Risky, may stall';
-  return 'Passable';
-}
-
-function getCarVerdict(level) {
-  if (level >= 3) return 'Do not enter';
-  if (level >= 2) return 'Passable with care';
-  return 'Passable';
-}
-
 function parseOpenAIResponse(rawText) {
   const cleaned = rawText.trim();
   const json = cleaned.startsWith('```') ? cleaned.replace(/^```json\s*|^```\s*|```$/g, '').trim() : cleaned;
@@ -69,7 +37,7 @@ async function analyzeFloodFromOpenAI(message, file) {
 
   const prompt = `You analyse flood reports for Hanoi. Respond in Vietnamese. If an image is attached: find reference objects (motorbike wheel, car, person, street sign) and estimate how deep the water is relative to them. If no photo, rely on the message only.
 Message: "${message || ''}"
-Return JSON with: objs (short Vietnamese string of reference objects used), level (0-3 from the photo: 0 dry/ankle, 1 under 15 cm, 2 about 15-35 cm, 3 over 35 cm; use the text level if there is no photo), cm (range like "20-30" or empty), conf (0-1), street (street name from the message, or empty), tlevel (0-3 severity implied by the message).
+Return JSON with: objs (short Vietnamese string of reference objects used), level (0-3 from the photo: 0 dry/ankle, 1 under 15 cm, 2 about 15-35 cm, 3 over 35 cm; use the text level if there is no photo), cm (numeric centimeter range without any unit, e.g. "20-30"; empty if unknown), conf (0-1), street (street name from the message, or empty), tlevel (0-3 severity implied by the message).
 Be conservative. If no flood or no reference object is visible, lower conf.`;
 
   const imageParts = [];
@@ -105,7 +73,7 @@ Be conservative. If no flood or no reference object is visible, lower conf.`;
           properties: {
             objs: { type: 'string' },
             level: { type: 'integer', minimum: 0, maximum: 3 },
-            cm: { type: 'string' },
+            cm: { type: 'string', description: 'Numeric range in centimeters without a unit, e.g. 15-35; empty when unknown.' },
             conf: { type: 'number', minimum: 0, maximum: 1 },
             street: { type: 'string' },
             tlevel: { type: 'integer', minimum: 0, maximum: 3 },
@@ -116,7 +84,8 @@ Be conservative. If no flood or no reference object is visible, lower conf.`;
         strict: true,
       },
     },
-    temperature: 0.2,
+    temperature: 0,
+    seed: 42,
   });
 
   const resultText = completion.choices?.[0]?.message?.content;
@@ -140,34 +109,7 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
 
   try {
     const parsed = await analyzeFloodFromOpenAI(message, req.file);
-    const level = clampLevel(parsed?.level ?? 0, 0);
-    const tlevel = clampLevel(parsed?.tlevel ?? level, level);
-    const street = String(parsed?.street || '').trim();
-    const conf = clampConfidence(parsed?.conf ?? 0.5, 0.5);
-    const consistent = Math.abs(level - tlevel) <= 1;
-    let finalConf = conf;
-
-    if (!consistent) {
-      finalConf = clampConfidence(conf * 0.6, 0.3);
-    }
-
-    const response = {
-      objs: String(parsed?.objs || 'not detected').trim(),
-      level,
-      cm: String(parsed?.cm || '').trim(),
-      conf: finalConf,
-      street: street || 'Unknown',
-      tlevel,
-      consistent,
-      motorbike: getMotorbikeVerdict(level),
-      car: getCarVerdict(level),
-    };
-
-    if (street && normalizeStreet(street) === 'unknown') {
-      response.street = 'Unknown';
-    }
-
-    return res.json(response);
+    return res.json(normalizeFloodAnalysis(parsed));
   } catch (error) {
     const status = Number(error?.status);
     console.error('OpenAI flood analysis failed', {
