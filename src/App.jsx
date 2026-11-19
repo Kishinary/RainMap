@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { divIcon } from 'leaflet';
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import { normalizeDepthRange } from '../shared/flood-analysis.js';
+import { getRoadAdvice } from '../shared/road-advice.js';
 
 const HANOI_BOUNDS = [
   [20.55, 105.28],
@@ -356,6 +357,13 @@ function MapHomeControl() {
 
 export default function App() {
   const [spots, setSpots] = useState(initialSpots);
+  const [chatMessages, setChatMessages] = useState([
+    {
+      role: 'assistant',
+      text: 'Xin chào! Hãy hỏi về một tuyến đường ở Hà Nội, ví dụ: “Có nên đi qua Thái Hà không?”',
+    },
+  ]);
+  const [chatMessage, setChatMessage] = useState('');
   const [message, setMessage] = useState('Đường Thái Hà ngập gần nửa bánh xe, xe máy khó đi');
   const [image, setImage] = useState(null);
   const [analysis, setAnalysis] = useState(null);
@@ -368,6 +376,19 @@ export default function App() {
     () => new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()),
     [],
   );
+
+  const handleChatSubmit = (event) => {
+    event.preventDefault();
+    const question = chatMessage.trim();
+    if (!question) return;
+
+    setChatMessages((messages) => [
+      ...messages,
+      { role: 'user', text: question },
+      { role: 'assistant', text: getRoadAdvice(question, spots) },
+    ]);
+    setChatMessage('');
+  };
 
   const handleAnalyze = async () => {
     if (!message.trim()) {
@@ -589,6 +610,36 @@ export default function App() {
             <span className="map-boundary-note">Giới hạn bản đồ: Hà Nội</span>
           </div>
           <div className="map-status-line"><span /> {status}</div>
+
+          <section className="chat-assistant" aria-labelledby="chat-title">
+            <div className="chat-heading">
+              <div>
+                <div className="section-kicker"><span>03</span> HỎI ĐÁP ĐƯỜNG ĐI</div>
+                <h3 id="chat-title">Trợ lý đi đường</h3>
+              </div>
+              <span className="chat-mode">Tư vấn từ bản đồ</span>
+            </div>
+            <p className="chat-note">Hỏi về một tuyến đường để xem mức ngập đang hiển thị và gợi ý thận trọng.</p>
+            <div className="chat-transcript" aria-live="polite" aria-label="Tin nhắn với trợ lý">
+              {chatMessages.map((chat, index) => (
+                <div className={`chat-message ${chat.role}`} key={`${chat.role}-${index}`}>
+                  {chat.text}
+                </div>
+              ))}
+            </div>
+            <form className="chat-form" onSubmit={handleChatSubmit}>
+              <label className="visually-hidden" htmlFor="road-question">Hỏi về tuyến đường</label>
+              <input
+                id="road-question"
+                value={chatMessage}
+                onChange={(event) => setChatMessage(event.target.value)}
+                placeholder="Ví dụ: Có nên đi qua Nguyễn Xiển?"
+                autoComplete="off"
+              />
+              <button className="primary" type="submit" disabled={!chatMessage.trim()}>Gửi</button>
+            </form>
+            <p className="chat-disclaimer">Các điểm và mức ngập đều là dữ liệu minh hoạ, không phải thông tin thời gian thực. Không coi câu trả lời là xác nhận đường an toàn; hãy theo dõi cảnh báo chính thức và tránh đi vào vùng ngập.</p>
+          </section>
         </section>
       </main>
       <footer className="page-footer">

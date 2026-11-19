@@ -12,6 +12,7 @@ Bản thử nghiệm nhận báo cáo đường ngập bằng ảnh và mô tả
 - Gom các điểm gần nhau; phóng to để xem từng vị trí
 - Giới hạn thao tác bản đồ trong khu vực Hà Nội
 - Có báo cáo minh hoạ để xem thử khi chưa kết nối dịch vụ
+- Trợ lý hỏi đáp gợi ý thận trọng theo mức ngập đang hiển thị trên bản đồ
 - Ghi rõ dữ liệu trên bản đồ chỉ dùng để minh hoạ
 
 ## Chạy trên máy cá nhân
@@ -47,5 +48,6 @@ Vercel tự dựng giao diện Vite từ `dist` và chạy API tại `/api/analy
 ## Lưu ý
 
 - Đây là bản thử nghiệm; các điểm đường và mức ngập đều là dữ liệu minh hoạ, không phải báo cáo thực tế.
+- Trợ lý đi đường chỉ tra cứu các điểm minh hoạ trên bản đồ, không có dữ liệu thời gian thực và không xác nhận tuyến đường an toàn.
 - Ngưỡng mực nước chỉ là ước tính, không thay thế khuyến cáo của cơ quan chức năng.
 - Khoá OpenAI chỉ được lưu trong biến môi trường phía máy chủ.
